@@ -4,10 +4,14 @@
 
 ## 快速开始
 
-### 全新安装
+### 安装
 
 ```bash
-cd /root/claude-root
+# 克隆仓库
+git clone https://github.com/killvxk/claude-root.git
+cd claude-root
+
+# 运行安装脚本
 ./install.sh
 ```
 
