@@ -1,0 +1,158 @@
+#!/bin/bash
+# 同步 root 配置到 dev 用户
+# 用于保持两个用户的配置一致
+
+echo "=== 同步配置到 dev 用户 ==="
+
+# 1. 同步 .config 目录
+echo "1. 同步 .config 配置..."
+mkdir -p /home/dev/.config
+cp -r /root/.config/ccstatusline /home/dev/.config/ 2>/dev/null
+cp -r /root/.config/Claude /home/dev/.config/ 2>/dev/null
+cp -r /root/.config/git /home/dev/.config/ 2>/dev/null
+
+# 2. 同步 git 配置
+echo "2. 同步 git 配置..."
+cp /root/.gitconfig /home/dev/ 2>/dev/null
+cp /root/.git-credentials /home/dev/ 2>/dev/null
+chmod 600 /home/dev/.git-credentials 2>/dev/null
+
+# 3. 同步 ssh 配置
+echo "3. 同步 ssh 配置..."
+cp -r /root/.ssh /home/dev/ 2>/dev/null
+chmod 700 /home/dev/.ssh 2>/dev/null
+chmod 600 /home/dev/.ssh/* 2>/dev/null
+
+# 4. 同步 docker 配置
+echo "4. 同步 docker 配置..."
+cp -r /root/.docker /home/dev/ 2>/dev/null
+
+# 5. 同步 .claude.json
+echo "5. 同步 .claude.json..."
+cp /root/.claude.json /home/dev/ 2>/dev/null
+cp /root/.claude.json /home/dev/.claude/ 2>/dev/null
+
+# 6. 更新 .claude 软链接
+echo "6. 更新 .claude 软链接..."
+cd /home/dev/.claude
+ln -sf /root/.claude/CLAUDE.md . 2>/dev/null
+ln -sf /root/.claude/settings.json . 2>/dev/null
+ln -sf /root/.claude/plugins . 2>/dev/null
+ln -sf /root/.claude/skills . 2>/dev/null
+
+# 7. 同步 .codemap
+echo "7. 同步 .codemap..."
+ln -sf /root/.codemap /home/dev/.codemap 2>/dev/null
+
+# 8. 设置所有权
+echo "8. 设置文件所有权..."
+chown -R dev:dev /home/dev/.config
+chown -R dev:dev /home/dev/.claude
+chown dev:dev /home/dev/.gitconfig 2>/dev/null
+chown dev:dev /home/dev/.git-credentials 2>/dev/null
+chown -R dev:dev /home/dev/.ssh 2>/dev/null
+chown -R dev:dev /home/dev/.docker 2>/dev/null
+chown dev:dev /home/dev/.claude.json 2>/dev/null
+
+# 9. 同步环境配置文件
+echo "9. 同步环境配置..."
+
+# 从 root 用户的 .zshrc 或环境变量中读取 API 配置
+ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-}"
+
+# 如果环境变量未设置，尝试从 root 的 .zshrc 读取
+if [ -z "$ANTHROPIC_AUTH_TOKEN" ] && [ -f "/root/.zshrc" ]; then
+    ANTHROPIC_BASE_URL=$(grep "export ANTHROPIC_BASE_URL" /root/.zshrc | cut -d'"' -f2 2>/dev/null || echo "https://api.anthropic.com")
+    ANTHROPIC_AUTH_TOKEN=$(grep "export ANTHROPIC_AUTH_TOKEN" /root/.zshrc | cut -d'"' -f2 2>/dev/null || echo "")
+fi
+
+cat > /home/dev/.claude_env << ENVEOF
+#!/bin/zsh
+# Claude Code 环境配置
+# 由 root 用户自动生成，供 dev 用户使用
+
+# Anthropic API 配置
+export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL}"
+export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN}"
+
+# PATH 配置（包含 Node.js）
+export PATH="\$HOME/.local/bin:/usr/local/bin:\$HOME/.local/share/radare2/prefix/bin:\$HOME/.cargo/bin:\$PATH"
+
+# NVM 配置
+export NVM_DIR="\$HOME/.nvm"
+[ -s "\$NVM_DIR/nvm.sh" ] && \\. "\$NVM_DIR/nvm.sh"
+
+# Cargo 配置
+export PATH="\$HOME/.cargo/bin:\$PATH"
+ENVEOF
+chown dev:dev /home/dev/.claude_env
+chmod 644 /home/dev/.claude_env
+
+# 10. 确保 Node.js 全局可用
+echo "10. 确保 Node.js 可用..."
+ln -sf /root/.nvm/versions/node/v24.14.0/bin/node /usr/local/bin/node 2>/dev/null
+ln -sf /root/.nvm/versions/node/v24.14.0/bin/npm /usr/local/bin/npm 2>/dev/null
+ln -sf /root/.nvm/versions/node/v24.14.0/bin/npx /usr/local/bin/npx 2>/dev/null
+
+# 11. 修复工作目录权限
+echo "11. 修复工作目录权限..."
+chmod 755 /root
+
+# 开放所有一级子目录（除了敏感目录）
+for dir in /root/*/; do
+    dirname=$(basename "$dir")
+    # 跳过敏感目录
+    if [[ "$dirname" != ".ssh" && "$dirname" != ".gnupg" && "$dirname" != ".password-store" ]]; then
+        chmod 755 "$dir" 2>/dev/null
+        # 如果有 docs 和 tests 子目录，设置为可写
+        if [ -d "$dir/docs" ]; then
+            mkdir -p "$dir/docs/memory" "$dir/docs/plan" 2>/dev/null
+            chmod -R 777 "$dir/docs" 2>/dev/null
+        fi
+        if [ -d "$dir/tests" ]; then
+            mkdir -p "$dir/tests/cases" 2>/dev/null
+            chmod -R 777 "$dir/tests" 2>/dev/null
+        fi
+    fi
+done
+
+# 修复根目录的 docs 和 tests
+mkdir -p /root/docs/memory /root/docs/plan /root/tests/cases 2>/dev/null
+chmod -R 777 /root/docs 2>/dev/null
+chmod -R 777 /root/tests 2>/dev/null
+
+# 确保 .claude 和 .codemap 可访问
+chmod -R 755 /root/.claude 2>/dev/null
+chmod -R 755 /root/.codemap 2>/dev/null
+chmod -R 755 /root/.config 2>/dev/null
+
+# 保护敏感目录
+chmod 700 /root/.ssh 2>/dev/null
+chmod 600 /root/.ssh/* 2>/dev/null
+chmod 700 /root/.gnupg 2>/dev/null
+chmod 700 /root/.password-store 2>/dev/null
+
+# 保护敏感文件
+chmod 600 /root/.claude/.credentials.json 2>/dev/null
+chmod 600 /root/.claude/history.jsonl 2>/dev/null
+chmod 700 /root/.claude/projects 2>/dev/null
+
+echo ""
+echo "✓ 配置同步完成！"
+echo ""
+echo "已同步的配置："
+echo "  - ccstatusline (状态栏样式)"
+echo "  - git (版本控制)"
+echo "  - ssh (密钥)"
+echo "  - docker (容器)"
+echo "  - Claude 配置"
+echo "  - .claude 目录"
+echo "  - .claude_env (环境变量)"
+echo "  - Node.js 全局链接"
+echo "  - 工作目录权限 (docs, tests)"
+echo ""
+echo "可用命令："
+echo "  claude-dev        - 启动 Claude Code"
+echo "  claude-diagnose   - 诊断环境"
+echo "  sync-dev-config   - 同步配置"

@@ -1,0 +1,25 @@
+#!/bin/bash
+# Claude Code Dev Mode Launcher
+# 从root用户一键切换到dev用户并启动Claude Code
+
+# 保存当前工作目录
+CURRENT_DIR=$(pwd)
+
+# 确保dev用户可以访问当前目录
+if [ ! -r "$CURRENT_DIR" ]; then
+    echo "警告: dev用户可能无法访问 $CURRENT_DIR"
+    echo "正在调整权限..."
+    chmod -R o+rX "$CURRENT_DIR" 2>/dev/null || true
+fi
+
+# 直接使用 su 的 -c 参数，明确加载环境
+exec su - dev -c "
+    # 加载 Claude 环境配置
+    source ~/.claude_env 2>/dev/null || source ~/.zshrc
+
+    # 切换到工作目录
+    cd '$CURRENT_DIR' || exit 1
+
+    # 启动 Claude Code
+    exec claude --dangerously-skip-permissions $*
+"

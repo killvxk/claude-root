@@ -1,0 +1,43 @@
+#!/bin/bash
+# Claude Code 环境诊断脚本
+
+echo "=== Claude Code 环境诊断 ==="
+echo ""
+
+echo "1. 用户信息"
+su - dev -c "whoami && echo 'Home: '\$HOME"
+echo ""
+
+echo "2. 环境变量"
+su - dev -c "source ~/.claude_env && env | grep ANTHROPIC"
+echo ""
+
+echo "3. 命令可用性"
+su - dev -c "source ~/.claude_env && which claude && claude --version 2>&1 | head -1"
+echo ""
+
+echo "4. 目录访问"
+su - dev -c "
+ls /root/.claude >/dev/null 2>&1 && echo '✓ /root/.claude 可访问' || echo '✗ /root/.claude 不可访问'
+ls /root/.codemap >/dev/null 2>&1 && echo '✓ /root/.codemap 可访问' || echo '✗ /root/.codemap 不可访问'
+ls ~/.claude.json >/dev/null 2>&1 && echo '✓ ~/.claude.json 存在' || echo '✗ ~/.claude.json 不存在'
+"
+echo ""
+
+echo "5. 配置文件读取"
+su - dev -c "
+cat ~/.claude/CLAUDE.md >/dev/null 2>&1 && echo '✓ CLAUDE.md 可读' || echo '✗ CLAUDE.md 不可读'
+cat ~/.claude/settings.json >/dev/null 2>&1 && echo '✓ settings.json 可读' || echo '✗ settings.json 不可读'
+cat ~/.claude.json >/dev/null 2>&1 && echo '✓ .claude.json 可读' || echo '✗ .claude.json 不可读'
+"
+echo ""
+
+echo "6. 插件目录"
+su - dev -c "ls ~/.claude/plugins/cache 2>&1 | head -3"
+echo ""
+
+echo "7. Sudo 权限"
+su - dev -c "sudo -n whoami 2>&1"
+echo ""
+
+echo "=== 诊断完成 ==="
